@@ -99,4 +99,4 @@ This work and the dataset are licensed under [CC BY-NC 4.0][cc-by-nc].
 
 If you have any questions, please open a github issue or contact us:
 
-Ruicheng Wang: <wrc0326@stu.pku.edu.cn>, Jialiang Zhang: <jackzhang0906@126.com>, He Wang: <hewang@pku.edu.cn>
+Ruicheng Wang: <wrc0326@outlook.com>, Jialiang Zhang: <jackzhang0906@126.com>, He Wang: <hewang@pku.edu.cn>
