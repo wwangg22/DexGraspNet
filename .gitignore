@@ -7,7 +7,7 @@ dataset
 # Caches
 __pycache__
 
-thirdparty
+TorchSDF/
 
 # tmp
 tmp
