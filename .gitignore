@@ -7,5 +7,7 @@ dataset
 # Caches
 __pycache__
 
+thirdparty
+
 # tmp
 tmp
