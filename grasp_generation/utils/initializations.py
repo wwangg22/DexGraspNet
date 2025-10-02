@@ -12,7 +12,6 @@ import pytorch3d.ops
 import trimesh as tm
 import numpy as np
 
-
 def initialize_convex_hull(hand_model, object_model, args):
     device = hand_model.device
     n_objects = len(object_model.object_mesh_list)
@@ -32,7 +31,7 @@ def initialize_convex_hull(hand_model, object_model, args):
         vertices *= object_model.object_scale_tensor[i].max().item()
         mesh_origin = tm.Trimesh(vertices, faces)
         mesh_origin.faces = mesh_origin.faces[mesh_origin.remove_degenerate_faces()]
-        vertices += 0.2 * vertices / np.linalg.norm(vertices, axis=1, keepdims=True)
+        vertices += 0.02 * vertices / np.linalg.norm(vertices, axis=1, keepdims=True)
         mesh = tm.Trimesh(vertices=vertices, faces=faces).convex_hull
         vertices = torch.tensor(mesh.vertices, dtype=torch.float, device=device)
         faces = torch.tensor(mesh.faces, dtype=torch.float, device=device)
@@ -48,10 +47,10 @@ def initialize_convex_hull(hand_model, object_model, args):
 
         # sample parameters
 
-        distance = args.distance_lower + (args.distance_upper - args.distance_lower) * torch.rand([batch_size_each], dtype=torch.float, device=device)
-        deviate_theta = args.theta_lower + (args.theta_upper - args.theta_lower) * torch.rand([batch_size_each], dtype=torch.float, device=device)
-        process_theta = 2 * math.pi * torch.rand([batch_size_each], dtype=torch.float, device=device)
-        rotate_theta = 2 * math.pi * torch.rand([batch_size_each], dtype=torch.float, device=device)
+        distance = args.distance_lower + torch.linspace(0, (args.distance_upper - args.distance_lower), steps=batch_size_each, dtype=float, device=device) #(args.distance_upper - args.distance_lower) * torch.rand([batch_size_each], dtype=torch.float, device=device)
+        deviate_theta = torch.zeros([batch_size_each], dtype=torch.float, device=device) #args.theta_lower + (args.theta_upper - args.theta_lower) * torch.rand([batch_size_each], dtype=torch.float, device=device)
+        process_theta = torch.zeros([batch_size_each], dtype=torch.float, device=device) #2 * math.pi * torch.rand([batch_size_each], dtype=torch.float, device=device)
+        rotate_theta = torch.zeros([batch_size_each], dtype=torch.float, device=device) #2 * math.pi * torch.rand([batch_size_each], dtype=torch.float, device=device)
 
         # solve transformation
 
@@ -63,13 +62,20 @@ def initialize_convex_hull(hand_model, object_model, args):
         translation[i * batch_size_each: (i + 1) * batch_size_each] = p - distance.unsqueeze(1) * (rotation_global @ rotation_local @ torch.tensor([0, 0, 1], dtype=torch.float, device=device).reshape(1, -1, 1)).squeeze(2)
         rotation_hand = torch.tensor(transforms3d.euler.euler2mat(-np.pi / 2, -np.pi / 2, 0, axes='rzyz'), dtype=torch.float, device=device)
         rotation[i * batch_size_each: (i + 1) * batch_size_each] = rotation_global @ rotation_local @ rotation_hand
-    
     joint_angles_mu = torch.tensor([0, 0.5, 0, 0, 0, 0.5, 0, 0, 0, 0.5, 0, 0, 1.4, 0, 0, 0, ], dtype=torch.float, device=device)
     joint_angles_sigma = args.jitter_strength * (hand_model.joints_upper - hand_model.joints_lower)
     joint_angles = torch.zeros([total_batch_size, hand_model.n_dofs], dtype=torch.float, device=device)
     for i in range(hand_model.n_dofs):
         torch.nn.init.trunc_normal_(joint_angles[:, i], joint_angles_mu[i], joint_angles_sigma[i], hand_model.joints_lower[i] - 1e-6, hand_model.joints_upper[i] + 1e-6)
-
+    
+    if args.experimental:
+        print('using experimental hand model')
+        contact_point_indices = torch.randint(hand_model.n_contact_candidates, size=[total_batch_size, args.n_contact], device=device)
+        rotation.requires_grad_()
+        translation.requires_grad_()
+        joint_angles.requires_grad_()
+        hand_model.set_parameters(translation, rotation, joint_angles, contact_point_indices)
+        return
     hand_pose = torch.cat([
         translation, 
         rotation.transpose(1, 2)[:, :2].reshape(-1, 6),

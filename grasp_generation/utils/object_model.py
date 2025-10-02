@@ -30,7 +30,9 @@ class ObjectModel:
         self.object_verts_list = None
         self.object_faces_list = None
         self.object_face_verts_list = None
-        self.scale_choice = torch.tensor([0.06, 0.08, 0.1, 0.12, 0.15], dtype=torch.float, device=self.device)
+        # self.scale_choice = torch.tensor([0.06, 0.08, 0.1, 0.12, 0.15], dtype=torch.float, device=self.device)
+        self.scale_choice = torch.tensor([0.08], dtype=torch.float, device=self.device)
+        # self.scale_choice = torch.tensor([0.1], dtype=torch.float, device=self.device)
 
     def initialize(self, object_code_list):
         if not isinstance(object_code_list, list):

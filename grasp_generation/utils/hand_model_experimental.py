@@ -22,7 +22,7 @@ import plotly.graph_objects as go
 from torchsdf import index_vertices_by_faces, compute_sdf
 
 
-class HandModel:
+class ExperimentalHandModel:
     def __init__(self, urdf_path, contact_points_path, n_surface_points=0, device='cpu'):
         self.device = device
         self.chain = pk.build_chain_from_urdf(open(urdf_path).read()).to(dtype=torch.float, device=device)
@@ -125,6 +125,9 @@ class HandModel:
         self.adjacency_mask[self.link_name_to_link_index['base_link'], self.link_name_to_link_index['link_13.0']] = True
         self.adjacency_mask[self.link_name_to_link_index['link_13.0'], self.link_name_to_link_index['base_link']] = True
 
+        self.translation = None
+        self.rotation = None
+        self.joint_angles = None  
         self.hand_pose = None
         self.contact_point_indices = None
         self.global_translation = None
@@ -132,10 +135,23 @@ class HandModel:
         self.current_status = None
         self.contact_points = None
 
-    def set_parameters(self, hand_pose, contact_point_indices=None):
-        self.hand_pose = hand_pose
-        if self.hand_pose.requires_grad:
-            self.hand_pose.retain_grad()
+    def set_parameters(self, translation, rotation, joint_angles, contact_point_indices=None):
+        self.translation = translation
+        self.rotation = rotation
+        self.joint_angles = joint_angles
+        if self.translation.requires_grad:
+            self.translation.retain_grad()
+        if self.rotation.requires_grad:
+            self.rotation.retain_grad()
+        if self.joint_angles.requires_grad:
+            self.joint_angles.retain_grad()
+        self.hand_pose = torch.cat([
+            self.translation,
+            self.rotation.transpose(1, 2)[:, :2].reshape(-1, 6),
+            self.joint_angles
+        ], dim=1)
+        # if self.hand_pose.requires_grad:
+        #     self.hand_pose.retain_grad()
         self.global_translation = self.hand_pose[:, 0:3]
         self.global_rotation = robust_compute_rotation_matrix_from_ortho6d(self.hand_pose[:, 3:9])
         self.current_status = self.chain.forward_kinematics(self.hand_pose[:, 9:])
@@ -152,7 +168,15 @@ class HandModel:
             self.contact_points = torch.cat([self.contact_points, torch.ones(batch_size, n_contact, 1, dtype=torch.float, device=self.device)], dim=2)
             self.contact_points = (transforms @ self.contact_points.unsqueeze(3))[:, :, :3, 0]
             self.contact_points = self.contact_points @ self.global_rotation.transpose(1, 2) + self.global_translation.unsqueeze(1)
-    
+    def rebuild_hand_pose(self):
+        self.hand_pose = torch.cat([
+            self.translation,
+            self.rotation.transpose(1, 2)[:, :2].reshape(-1, 6),
+            self.joint_angles
+        ], dim=1)
+        self.global_translation = self.hand_pose[:, 0:3]
+        self.global_rotation = robust_compute_rotation_matrix_from_ortho6d(self.hand_pose[:, 3:9])
+        self.current_status = self.chain.forward_kinematics(self.hand_pose[:, 9:])
     def cal_distance(self, x):
         # x: (total_batch_size, num_samples, 3)
         # 单独考虑每个link

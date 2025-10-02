@@ -11,3 +11,5 @@ TorchSDF/
 
 # tmp
 tmp
+
+.ipynb_checkpoints
